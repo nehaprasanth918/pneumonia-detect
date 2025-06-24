@@ -1,0 +1,83 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+const char* ssid = "PVNS";
+const char* password = "3097401556";
+const char* serverUrl = "http://192.168.68.106:5000/latest_prediction";
+
+void setup() {
+  Serial.begin(115200);
+
+  // Initialize OLED
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    while(true);
+  }
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  display.println("Connecting to WiFi...");
+  display.display();
+
+  // Connect to WiFi
+  WiFi.begin(ssid, password);
+  while(WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("Connected!");
+  display.display();
+  delay(1000);
+}
+
+void loop() {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(serverUrl);
+    int httpCode = http.GET();
+
+    if (httpCode == 200) {
+      String response = http.getString();
+      Serial.println(response);
+
+      DynamicJsonDocument doc(256);
+      deserializeJson(doc, response);
+      String result = doc["result"];
+      float confidence = doc["confidence"];
+      display.clearDisplay();
+      display.setTextSize(1);
+      display.setCursor(0, 0);
+      display.println("Latest Prediction:");
+
+      display.setTextSize(2);
+      display.setCursor(0, 16);
+      display.println(result);
+      display.display();
+    } else {
+      Serial.printf("Error code: %d\n", httpCode);
+    }
+
+    http.end();
+  } else {
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.println("WiFi disconnected!");
+    display.display();
+  }
+
+  delay(2000); 
+}
